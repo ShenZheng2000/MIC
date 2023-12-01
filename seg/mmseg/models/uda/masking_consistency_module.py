@@ -95,7 +95,8 @@ class MaskingConsistencyModule(Module):
             masked_seg_weight = None
         # Use 1x source image and 1x target image for MIC
         elif self.mask_mode in ['separate', 'separateaug']:
-            assert img.shape[0] == 2
+            # TODO: hardcode for now
+            # assert img.shape[0] == 2
             masked_img = torch.stack([img[0], target_img[0]])
             masked_lbl = torch.stack(
                 [gt_semantic_seg[0], masked_plabel[0].unsqueeze(0)])

@@ -1,0 +1,3 @@
+**/*.out
+**/*.png
+seg/mmseg/transforms

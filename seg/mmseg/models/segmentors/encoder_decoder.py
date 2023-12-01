@@ -18,6 +18,7 @@ from ..utils.dacs_transforms import get_mean_std
 from ..utils.visualization import prepare_debug_out, subplotimg
 from .base import BaseSegmentor
 
+from ...transforms.fovea import build_grid_net, before_train_json, process_mmseg, read_seg_to_det
 
 @SEGMENTORS.register_module()
 class EncoderDecoder(BaseSegmentor):
@@ -36,7 +37,28 @@ class EncoderDecoder(BaseSegmentor):
                  train_cfg=None,
                  test_cfg=None,
                  pretrained=None,
-                 init_cfg=None):
+                 init_cfg=None,
+                 # NOTE: configs for warping
+                 VANISHING_POINT=None, 
+                 warp_aug=None,
+                 warp_aug_lzu=None, 
+                 warp_fovea=None, 
+                 warp_fovea_inst=None,
+                 warp_fovea_inst_scale=False,
+                 warp_fovea_inst_scale_l2=False,
+                 warp_fovea_mix=None, 
+                 warp_middle=None,
+                 warp_debug=False,
+                 warp_fovea_center=False,
+                 warp_scale=1.0,
+                 warp_dataset=[],
+                 SEG_TO_DET=None,
+                 keep_grid=False,
+                 is_seg=True,
+                 bandwidth_scale=64,
+                 amplitude_scale=1.0,  
+                 hr_slide_inference=False, 
+                 ):
         super(EncoderDecoder, self).__init__(init_cfg)
         if pretrained is not None:
             assert backbone.get('pretrained') is None, \
@@ -59,6 +81,36 @@ class EncoderDecoder(BaseSegmentor):
 
         assert self.with_decode_head
 
+        # NOTE: add these stuffs used for warping
+        self.warp_aug = warp_aug
+        self.warp_aug_lzu = warp_aug_lzu
+        self.warp_fovea = warp_fovea
+        self.warp_fovea_inst = warp_fovea_inst
+        self.warp_fovea_mix = warp_fovea_mix
+        self.warp_middle = warp_middle
+        self.warp_debug = warp_debug
+        self.warp_scale = warp_scale
+        self.warp_dataset = warp_dataset
+        self.warp_fovea_center = warp_fovea_center
+        self.is_seg = is_seg
+        self.keep_grid = keep_grid
+
+        self.seg_to_det = read_seg_to_det(SEG_TO_DET)
+
+        self.vanishing_point = before_train_json(VP=VANISHING_POINT)
+        self.grid_net = build_grid_net(warp_aug_lzu=warp_aug_lzu,
+                                        warp_fovea=warp_fovea,
+                                        warp_fovea_inst=warp_fovea_inst,
+                                        warp_fovea_mix=warp_fovea_mix,
+                                        warp_middle=warp_middle,
+                                        warp_scale=warp_scale,
+                                        warp_fovea_center=warp_fovea_center,
+                                        warp_fovea_inst_scale=warp_fovea_inst_scale,
+                                        warp_fovea_inst_scale_l2=warp_fovea_inst_scale_l2,
+                                        is_seg=is_seg,
+                                        bandwidth_scale=bandwidth_scale,
+                                        amplitude_scale=amplitude_scale,)
+
     def _init_decode_head(self, decode_head):
         """Initialize ``decode_head``"""
         self.decode_head = builder.build_head(decode_head)
@@ -75,19 +127,52 @@ class EncoderDecoder(BaseSegmentor):
             else:
                 self.auxiliary_head = builder.build_head(auxiliary_head)
 
-    def extract_feat(self, img):
+    # def extract_feat(self, img):
+    #     """Extract features from images."""
+    #     x = self.backbone(img)
+    #     if self.with_neck:
+    #         x = self.neck(x)
+    #     return x
+
+    def extract_feat(self, img, img_metas=None, is_training=True):
         """Extract features from images."""
-        x = self.backbone(img)
+
+        # using warping image visualization, and print-outs
+
+        if (self.warp_aug_lzu is True) and (img_metas is not None):
+            # print("self.warp_dataset is", self.warp_dataset)
+            if any(src in img_metas[0]['filename'] for src in self.warp_dataset) and (is_training is True):
+                # print(f"YES, RUNNING warping on {img_metas[0]['filename']}")
+                # exit()
+                x, img, img_metas = process_mmseg(img_metas,
+                                                    img,
+                                                    self.warp_aug_lzu,
+                                                    self.vanishing_point,
+                                                    self.grid_net,
+                                                    self.backbone,
+                                                    self.warp_debug,
+                                                    seg_to_det=self.seg_to_det,
+                                                    keep_grid=self.keep_grid
+                                                )
+                # print("images.shape", img.shape)
+            else:
+                x = self.backbone(img)
+        else:
+            x = self.backbone(img)
+
         if self.with_neck:
             x = self.neck(x)
+
+        # return x, img, img_metas
         return x
 
-    def generate_pseudo_label(self, img, img_metas):
+    def generate_pseudo_label(self, img, img_metas, is_training):
         self.update_debug_state()
         if self.debug:
             self.debug_output = {
                 'Image': img,
             }
+        # print("generate_pseudo_label!!! img_metas = ", img_metas)
         out = self.encode_decode(img, img_metas)
         if self.debug:
             self.debug_output.update(self.decode_head.debug_output)
@@ -95,10 +180,14 @@ class EncoderDecoder(BaseSegmentor):
 
         return out
 
-    def encode_decode(self, img, img_metas, upscale_pred=True):
+    def encode_decode(self, img, img_metas, upscale_pred=True, 
+                      is_training=True
+                      ):
         """Encode images with backbone and decode into a semantic segmentation
         map of the same size as input."""
-        x = self.extract_feat(img)
+        x = self.extract_feat(img, img_metas, 
+                                is_training
+                                )
         out = self._decode_head_forward_test(x, img_metas)
         if upscale_pred:
             out = resize(
@@ -108,7 +197,9 @@ class EncoderDecoder(BaseSegmentor):
                 align_corners=self.align_corners)
         return out
 
+    # TODO: think about this later
     def forward_with_aux(self, img, img_metas):
+        print("using forward_with_aux!!!!!!!!!!")
         self.update_debug_state()
 
         ret = {}
@@ -140,7 +231,7 @@ class EncoderDecoder(BaseSegmentor):
                                    img_metas,
                                    gt_semantic_seg,
                                    seg_weight=None,
-                                   return_logits=False):
+                                   return_logits=False,):
         """Run forward function and calculate loss for decode head in
         training."""
         losses = dict()
@@ -199,7 +290,9 @@ class EncoderDecoder(BaseSegmentor):
                       gt_semantic_seg,
                       seg_weight=None,
                       return_feat=False,
-                      return_logits=False):
+                      return_logits=False,
+                      is_training=True
+                      ):
         """Forward function for training.
 
         Args:
@@ -217,7 +310,10 @@ class EncoderDecoder(BaseSegmentor):
         """
         self.update_debug_state()
 
-        x = self.extract_feat(img)
+        # x = self.extract_feat(img)
+        x = self.extract_feat(img, img_metas, 
+                            is_training
+                            )
 
         losses = dict()
         if return_feat:
@@ -350,10 +446,12 @@ class EncoderDecoder(BaseSegmentor):
                 warning=False)
         return preds
 
-    def whole_inference(self, img, img_meta, rescale):
+    def whole_inference(self, img, img_meta, rescale,
+                        is_training=False):
         """Inference with full image."""
 
-        seg_logit = self.encode_decode(img, img_meta)
+        seg_logit = self.encode_decode(img, img_meta,
+                                       is_training=is_training)
         if rescale:
             # support dynamic shape for onnx
             if torch.onnx.is_in_onnx_export():

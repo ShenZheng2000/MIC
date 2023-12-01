@@ -108,34 +108,51 @@ class HRDAHead(BaseDecodeHead):
             align_corners=self.align_corners)
 
     def decode_hr(self, inp, bs):
+        # print("Entering decode_hr function.")
         if isinstance(inp, dict) and 'boxes' in inp.keys():
             features = inp['features']  # level, crop * bs, c, h, w
             boxes = inp['boxes']
             dev = features[0][0].device
             h_img, w_img = 0, 0
             for i in range(len(boxes)):
+                # print("self.os is", self.os)
+                # print(f"Box {i} before scaling: {boxes[i]}")
                 boxes[i] = scale_box(boxes[i], self.os)
+                # print(f"Box {i} after scaling: {boxes}")
                 y1, y2, x1, x2 = boxes[i]
                 if h_img < y2:
                     h_img = y2
                 if w_img < x2:
                     w_img = x2
+            
+            # print(f"Final image size (h, w): ({h_img}, {w_img})")
             preds = torch.zeros((bs, self.num_classes, h_img, w_img),
                                 device=dev)
             count_mat = torch.zeros((bs, 1, h_img, w_img), device=dev)
+            # print("Shapes before head inference:")
+            # print([f.shape for f in features])
 
             crop_seg_logits = self.head(features)
+            # print("Shape of crop_seg_logits:", crop_seg_logits.shape)
+
             for i in range(len(boxes)):
                 y1, y2, x1, x2 = boxes[i]
                 crop_seg_logit = crop_seg_logits[i * bs:(i + 1) * bs]
                 preds += F.pad(crop_seg_logit,
                                (int(x1), int(preds.shape[3] - x2), int(y1),
                                 int(preds.shape[2] - y2)))
+                    
+                pad_params = (int(x1), int(preds.shape[3] - x2), int(y1), int(preds.shape[2] - y2))
+                # print(f"Padding params for box {i}: {pad_params}")
 
                 count_mat[:, :, y1:y2, x1:x2] += 1
 
+            # print("Count matrix:", count_mat)
+            assert (count_mat == 0).sum() == 0, "Found zero in count matrix."
+
             assert (count_mat == 0).sum() == 0
             preds = preds / count_mat
+            # print("Shape of final preds:", preds.shape)
             return preds
         else:
             return self.head(inp)
@@ -165,6 +182,8 @@ class HRDAHead(BaseDecodeHead):
         lr_seg = self.head(lr_inp)
         # print_log(f'lr_seg {lr_seg.shape}', 'mmseg')
 
+        # print("lr_inp len: ", len(lr_inp)) # 4
+        # print("hr_inp: ", hr_inp) # list (train-time) or dict (test-time)
         hr_seg = self.decode_hr(hr_inp, batch_size)
 
         att = self.get_scale_attention(lr_sc_att_inp)
@@ -188,6 +207,9 @@ class HRDAHead(BaseDecodeHead):
         else:
             hr_seg_inserted = hr_seg
 
+        # print("att shape: ", att.shape) # [BS, 19, 128, 228]
+        # print("hr_seg_inserted shape: ", hr_seg_inserted.shape) [BS, 19, 128, 228] (why 227 at testing???)
+        # print("up_lr_seg shape: ", up_lr_seg.shape) [BS, 19, 128, 228]
         fused_seg = att * hr_seg_inserted + up_lr_seg
 
         if self.debug_output_attention:

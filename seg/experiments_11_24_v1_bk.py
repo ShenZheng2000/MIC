@@ -294,16 +294,11 @@ def generate_experiment_cfgs(id):
             opt_param_cfg['pos_block'] = dict(decay_mult=0.)
             opt_param_cfg['norm'] = dict(decay_mult=0.)
 
-        # # Setup runner
-        # cfg['runner'] = dict(type='IterBasedRunner', max_iters=iters)
-        # cfg['checkpoint_config'] = dict(
-        #     by_epoch=False, interval=iters, max_keep_ckpts=1)
-        # cfg['evaluation'] = dict(interval=iters // 10, metric='mIoU')
-
+        # Setup runner
         cfg['runner'] = dict(type='IterBasedRunner', max_iters=iters)
         cfg['checkpoint_config'] = dict(
-            by_epoch=False, interval=iters // 10, max_keep_ckpts=10)
-        cfg['evaluation'] = dict(interval=iters // 10, metric='mIoU', save_best='mIoU')
+            by_epoch=False, interval=iters, max_keep_ckpts=1)
+        cfg['evaluation'] = dict(interval=iters // 10, metric='mIoU')
 
         # Construct config name
         uda_mod = uda
@@ -371,8 +366,8 @@ def generate_experiment_cfgs(id):
     # -------------------------------------------------------------------------
     cfgs = []
     n_gpus = 1
-    # TODO: hardcode as 1 for now
     batch_size = 2
+    # # # TODO: change batch size for now!!!!!!!!!!!!!!
     # batch_size = 1
     iters = 40000
     opt, lr, schedule, pmult = 'adamw', 0.00006, 'poly10warm', True
@@ -409,7 +404,7 @@ def generate_experiment_cfgs(id):
             # ('gtaHR',        'cityscapesHR', 'separatetrgaug'),
             # ('synthiaHR',    'cityscapesHR', 'separatetrgaug'),
             ('cityscapesHR', 'acdcHR',       'separate'),
-            # ('cityscapesHR', 'darkzurichHR', 'separate'),
+            ('cityscapesHR', 'darkzurichHR', 'separate'),
         ]:
             for seed in seeds:
                 gpu_model = 'NVIDIATITANRTX'
@@ -422,76 +417,72 @@ def generate_experiment_cfgs(id):
     # MIC with Further UDA Methods (Table 1)
     # -------------------------------------------------------------------------
     # elif id == 81:
-    # if id is not None: # TODO: change to this one later maybe
-    else:
+    elif id in [81, 82, 91, 92]:
 
-        # seeds = [0]
-        seed = 0
+        # seeds = [0, 1, 2]
+        seeds = [0]
 
-        # General configs
+        #        opt,     lr,      schedule,     pmult
+        sgd   = ('sgd',   0.0025,  'poly10warm', False)
         adamw = ('adamw', 0.00006, 'poly10warm', True)
+        #               uda,                  rcs_T, plcrop, opt_hp
+        # uda_advseg =   ('advseg',             None,  False,  *sgd)
+        # uda_minent =   ('minent',             None,  False,  *sgd)
+        # uda_dacs =     ('dacs',               None,  False,  *adamw)
         uda_daformer = ('dacs_a999_fdthings', 0.01,  True,   *adamw)
-        uda_hrda =     ('dacs_a999_fdthings', 0.01,  'v2',   *adamw)
+        # uda_hrda =     ('dacs_a999_fdthings', 0.01,  'v2',   *adamw)
         mask_mode, mask_ratio = 'separatetrgaug', 0.7
-
-        rcs_min_crop = 0.5
-        gpu_model = 'NVIDIAGeForceRTX2080Ti'
-        inference = 'whole'
-        # Use half the patch size when training with half resolution
-        mask_block_size = 32
-
-        # Network configs
-        if id in [81, 82, 91, 92]:
-            architecture, backbone, uda_hp = 'daformer_sepaspp', 'mitb5', uda_daformer
-            print("architecture is", architecture)
-        elif id in [83, 84, 85, 86, 93, 94, 95, 96]:
-            architecture, backbone, uda_hp = 'hrda1-512-0.1_daformer_sepaspp', 'mitb5', uda_hrda
-        else:
-            print("ERROR: id not in range")
-            exit()
-
-        # # HRDA specific configs
-        # if 'hrda' in architecture:
-        #     # source, target, crop = 'gtaHR', 'cityscapesHR', '1024x1024'
-        #     # rcs_min_crop = 0.5 * (2 ** 2)
-        #     # gpu_model = 'NVIDIATITANRTX'
-        #     inference = 'slide'
-        #     # mask_block_size = 64
-        
-        # DAFormer general configs
-        if id in [81, 82, 83, 84]:
-            source, target, crop, mask_mode = 'cityscapes', 'darkzurich', '512x1024', 'separate'
-        elif id in [85, 86]:
-            source, target, crop, mask_mode = 'cityscapes', 'darkzurich', '512x1024', None
-        elif id in [91, 92, 93, 94]:
-            source, target, crop, mask_mode = 'cityscapes', 'acdc', '512x1024', 'separate'
-        elif id in [95, 96]:
-            source, target, crop, mask_mode = 'cityscapes', 'acdc', '512x1024', None
-
-        # source, target, crop = 'gta', 'cityscapes', '512x512'
-
-        # # TODO: use this to debug testing shapes
-        # if id == 83 or id == 84:
-        #     iters = 1000
-
-        uda, rcs_T, plcrop, opt, lr, schedule, pmult = uda_hp
-        cfg = config_from_vars()
-
-        # Waring specific configs
-        if id in [82, 92, 84, 94, 86, 96]:
-            cfg['model']['warp_dataset'] = ['cityscapes']
-            cfg['model']['VANISHING_POINT'] = None
-            cfg['model']['warp_aug_lzu'] = True
-            cfg['model']['warp_fovea_inst'] = True
-            cfg['model']['SEG_TO_DET'] = '/home/aghosh/Projects/2PCNet/Datasets/cityscapes/gt_detection/instancesonly_filtered_gtFine_train_poly_simple.json'
-            # cfg['model']['warp_debug'] = True # NOTE: use this for debug
+        for architecture,                      backbone,  uda_hp in [
+            # ('dlv2red',                        'r101v1c', uda_advseg),
+            # ('dlv2red',                        'r101v1c', uda_minent),
+            # ('dlv2red',                        'r101v1c', uda_dacs),
+            # ('dlv2red',                        'r101v1c', uda_daformer),
+            # ('hrda1-512-0.1_dlv2red',          'r101v1c', uda_hrda),
+            ('daformer_sepaspp',               'mitb5',   uda_daformer),
+            # ('hrda1-512-0.1_daformer_sepaspp', 'mibt5',   uda_hrda),  # already run in exp 80
+        ]:
+            if 'hrda' in architecture:
+                source, target, crop = 'gtaHR', 'cityscapesHR', '1024x1024'
+                rcs_min_crop = 0.5 * (2 ** 2)
+                gpu_model = 'NVIDIATITANRTX'
+                inference = 'slide'
+                mask_block_size = 64
+            
+            # NOTE: change source, target, and crop
+            else:
+                
 
 
-        # TODO: hardcode this as False now. Also, ensure  test_cfg=dict(mode='whole'), in the config file
-        cfg['model']['hr_slide_inference'] = False
+                if id in [81, 82]:
+                    source, target, crop, mask_mode = 'cityscapes', 'darkzurich', '512x1024', 'separate'
+                elif id in [91, 92]:
+                    source, target, crop, mask_mode = 'cityscapes', 'acdc', '512x1024', 'separate'
+
+                # source, target, crop = 'gta', 'cityscapes', '512x512'
 
 
-        cfgs.append(cfg)
+
+                rcs_min_crop = 0.5
+                gpu_model = 'NVIDIAGeForceRTX2080Ti'
+                inference = 'whole'
+                # Use half the patch size when training with half resolution
+                mask_block_size = 32
+            for seed in seeds:
+                uda, rcs_T, plcrop, opt, lr, schedule, pmult = uda_hp
+                cfg = config_from_vars()
+
+
+
+                if id in [82, 92]:
+                    cfg['model']['warp_dataset'] = ['cityscapes']
+                    cfg['model']['VANISHING_POINT'] = None
+                    cfg['model']['warp_aug_lzu'] = True
+                    cfg['model']['warp_fovea_inst'] = True
+                    cfg['model']['SEG_TO_DET'] = '/home/aghosh/Projects/2PCNet/Datasets/cityscapes/gt_detection/instancesonly_filtered_gtFine_train_poly_simple.json'
+                    # cfg['model']['warp_debug'] = True # NOTE: use this for debug
+
+
+                cfgs.append(cfg)
 
 
 

@@ -100,6 +100,10 @@ class DACS(UDADecorator):
         else:
             self.imnet_model = None
 
+        # NOTE: add warp src only flag
+        self.warp_tgt = cfg.get('warp_tgt', False)
+        # print("self.warp_tgt is", self.warp_tgt)
+
     def get_ema_model(self):
         return get_module(self.ema_model)
 
@@ -341,6 +345,7 @@ class DACS(UDADecorator):
         # Train on source images
         clean_losses = self.get_model().forward_train(
             img, img_metas, gt_semantic_seg, return_feat=True)
+        # print("clean_losses is", clean_losses); exit()
         src_feat = clean_losses.pop('features')
         seg_debug['Source'] = self.get_model().debug_output
         clean_loss, clean_log_vars = self._parse_losses(clean_losses)
@@ -381,7 +386,9 @@ class DACS(UDADecorator):
                 if isinstance(m, DropPath):
                     m.training = False
             ema_logits = self.get_ema_model().generate_pseudo_label(
-                target_img, target_img_metas)
+                target_img, target_img_metas,
+                is_training=self.warp_tgt  # NOTE: add non-warp for here
+                )
             seg_debug['Target'] = self.get_ema_model().debug_output
 
             pseudo_label, pseudo_weight = self.get_pseudo_label_and_weight(
@@ -418,6 +425,7 @@ class DACS(UDADecorator):
                 mixed_lbl,
                 seg_weight=mixed_seg_weight,
                 return_feat=False,
+                is_training=self.warp_tgt, # NOTE: add no warp flag here!!!
             )
             seg_debug['Mix'] = self.get_model().debug_output
             mix_losses = add_prefix(mix_losses, 'mix')
