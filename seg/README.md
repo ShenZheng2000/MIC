@@ -2,7 +2,7 @@
 
 ## Training
 
-For convenience, we provide an [annotated config file](configs/mic/gtaHR2csHR_mic_hrda.py)
+<!-- For convenience, we provide an [annotated config file](configs/mic/gtaHR2csHR_mic_hrda.py)
 of the final MIC(HRDA) on GTA→Cityscapes. A training job can be launched using:
 
 ```shell
@@ -11,7 +11,9 @@ python run_experiments.py --config configs/mic/gtaHR2csHR_mic_hrda.py
 
 The logs and checkpoints are stored in `work_dirs/`.
 
-For the other experiments in our paper, we use a script to automatically
+For the other experiments in our paper,  -->
+
+We use a script to automatically
 generate and train the configs:
 
 ```shell
