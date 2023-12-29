@@ -46,3 +46,10 @@ run_experiment() {
 # DAFormer + HRDA (CS => ACDC)
 # run_experiment 1 95                     # 95: w/o warping
 # run_experiment 0 96                     # 96: w/ warping
+
+
+# DAFormer + HRDA + MIC (full-resolution) (CS => ACDC)
+run_experiment 0 80                     # 80: w/o warping
+
+# DAFormer + HRDA + MIC (full-resolution) (CS => DarkZurich)
+# run_experiment 1 70                  # 70: w/o warping

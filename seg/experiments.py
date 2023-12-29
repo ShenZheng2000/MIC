@@ -398,26 +398,40 @@ def generate_experiment_cfgs(id):
     # MIC with HRDA for Different UDA Benchmarks (Table 2)
     # -------------------------------------------------------------------------
     # yapf: disable
-    if id == 80:
-        seeds = [0, 1, 2]
+    if id in [70, 80]:
+        
+        # NOTE: fix seed, reduce bs, and increase iters
+        seed = 0
+        batch_size = 1
+        iters = 80000
+
+        # seeds = [0, 1, 2]
+        # seeds = [0]
         architecture, backbone = 'hrda1-512-0.1_daformer_sepaspp', 'mitb5'
         uda, rcs_T = 'dacs_a999_fdthings', 0.01
         crop, rcs_min_crop = '1024x1024', 0.5 * (2 ** 2)
         inference = 'slide'
         mask_block_size, mask_ratio = 64, 0.7
-        for source,          target,         mask_mode in [
-            # ('gtaHR',        'cityscapesHR', 'separatetrgaug'),
-            # ('synthiaHR',    'cityscapesHR', 'separatetrgaug'),
-            ('cityscapesHR', 'acdcHR',       'separate'),
-            # ('cityscapesHR', 'darkzurichHR', 'separate'),
-        ]:
-            for seed in seeds:
-                gpu_model = 'NVIDIATITANRTX'
-                # plcrop is only necessary for Cityscapes as target domains
-                # ACDC and DarkZurich have no rectification artifacts.
-                plcrop = 'v2' if 'cityscapes' in target else False
-                cfg = config_from_vars()
-                cfgs.append(cfg)
+        # for source,          target,         mask_mode in [
+        #     # ('gtaHR',        'cityscapesHR', 'separatetrgaug'),
+        #     # ('synthiaHR',    'cityscapesHR', 'separatetrgaug'),
+        #     ('cityscapesHR', 'acdcHR',       'separate'),
+        #     # ('cityscapesHR', 'darkzurichHR', 'separate'),
+        # ]:
+
+        if id == 70:
+            source, target, mask_mode = 'cityscapesHR', 'darkzurichHR', 'separate'
+        elif id == 80:
+            source, target, mask_mode = 'cityscapesHR', 'acdcHR', 'separate'
+        
+        # for seed in seeds:
+        gpu_model = 'NVIDIATITANRTX'
+        # plcrop is only necessary for Cityscapes as target domains
+        # ACDC and DarkZurich have no rectification artifacts.
+        plcrop = 'v2' if 'cityscapes' in target else False
+        cfg = config_from_vars()
+        cfgs.append(cfg)
+
     # -------------------------------------------------------------------------
     # MIC with Further UDA Methods (Table 1)
     # -------------------------------------------------------------------------
