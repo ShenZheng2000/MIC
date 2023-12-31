@@ -1,6 +1,4 @@
-# MIC for Domain-Adaptive Semantic Segmentation
-
-## Training
+# Training
 
 We use a script to automatically
 generate and train the configs:
