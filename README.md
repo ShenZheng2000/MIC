@@ -1,5 +1,3 @@
-# MIC: Masked Image Consistency for Context-Enhanced Domain Adaptation
-
 ## MIC for Domain-Adaptive Semantic Segmentation
 
 You can find the source code to run MIC on domain-adaptive semantic segmentation

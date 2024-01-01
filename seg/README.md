@@ -13,6 +13,8 @@ in `configs/generated/`.
 
 # Specific Configs and Checkpoints
 
+TODO: wait till camera-ready to upload these results. 
+
 ## Cityscapes -> DarkZurich
 
 | Experiments | Id | Checkpoints |
