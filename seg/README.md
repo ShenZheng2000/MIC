@@ -13,6 +13,9 @@ in `configs/generated/`.
 
 # Specific Configs and Checkpoints
 
+<details>
+  <summary>Click Here</summary>
+
 TODO: wait till camera-ready to upload these results. 
 
 ## Cityscapes -> DarkZurich
@@ -34,3 +37,5 @@ TODO: wait till camera-ready to upload these results.
 | HRDA (DAFormer)  + Ours           | 96 | TODO |
 | HRDA (w/o HR-crop)                | 90 | TODO |
 | HRDA (w/o HR-crop) + Ours         | 98 | TODO |
+
+</details>
